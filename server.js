@@ -10,7 +10,7 @@ app.use(express.json());
 
 const JWT_SECRET = 'your-secret-key'; // Keep this safe!
 
-mongoose.connect('mongodb+srv://nass-sk_22:hackathon123@cluster0.jhcye.mongodb.net/ecommerce?retryWrites=true&w=majority&appName=Cluster0')
+mongoose.connect('mongodb+srv://nass-sk_22:hackathon2k25@cluster0.jhcye.mongodb.net/ecommerce?retryWrites=true&w=majority&appName=Cluster0')
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB error:', err));
 
