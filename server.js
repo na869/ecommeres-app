@@ -8,9 +8,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const JWT_SECRET = 'your-secret-key'; // Replace with a strong secret in production!
+const JWT_SECRET = 'your-secret-key'; // Keep this safe!
 
-mongoose.connect('mongodb+srv://nass-sk_22:hackathon2k25@cluster0.jhcye.mongodb.net/ecommerce?retryWrites=true&w=majority&appName=Cluster0')
+mongoose.connect('mongodb+srv://nass-sk_22:hackathon123@cluster0.jhcye.mongodb.net/ecommerce?retryWrites=true&w=majority&appName=Cluster0')
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB error:', err));
 
@@ -21,19 +21,19 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// Product Schema
+// Product Schema (with image field)
 const productSchema = new mongoose.Schema({
   name: String,
   price: Number,
   description: String,
+  image: String, // URL to the product image
 });
 const Product = mongoose.model('Product', productSchema);
 
-// Middleware to Verify Token
+// Auth Middleware
 const authenticateToken = (req, res, next) => {
-  const token = req.headers['authorization']?.split(' ')[1]; // Expect "Bearer <token>"
+  const token = req.headers['authorization']?.split(' ')[1];
   if (!token) return res.status(401).json({ message: 'No token provided' });
-
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ message: 'Invalid token' });
     req.user = user;
@@ -43,7 +43,7 @@ const authenticateToken = (req, res, next) => {
 
 // Routes
 app.get('/', (req, res) => {
-  res.send('Welcome to my E-commerce Backend! Use /signup, /login, or /products.');
+  res.send('Welcome to my E-commerce Backend! Use /signup, /login, /products, or /products/add.');
 });
 
 // Signup
@@ -74,18 +74,28 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Protected Products Route
+// Get Products
 app.get('/products', authenticateToken, async (req, res) => {
   try {
     const { search } = req.query;
     let query = {};
-    if (search) {
-      query.name = { $regex: search, $options: 'i' };
-    }
+    if (search) query.name = { $regex: search, $options: 'i' };
     const products = await Product.find(query);
     res.json(products);
   } catch (error) {
     res.status(500).json({ message: 'Server error while fetching products' });
+  }
+});
+
+// Add Product (protected route)
+app.post('/products/add', authenticateToken, async (req, res) => {
+  try {
+    const { name, price, description, image } = req.body;
+    const product = new Product({ name, price, description, image });
+    await product.save();
+    res.status(201).json({ message: 'Product added', product });
+  } catch (error) {
+    res.status(400).json({ message: 'Error adding product', error: error.message });
   }
 });
 
