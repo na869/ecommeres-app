@@ -1,15 +1,27 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect('mongodb+srv://nass-sk_22:hackathon123@cluster0.jhcye.mongodb.net/ecommerce?retryWrites=true&w=majority&appName=Cluster0')
+const JWT_SECRET = 'your-secret-key'; // Replace with a strong secret in production!
+
+mongoose.connect('mongodb+srv://nass-sk_22:hackathon2k25@cluster0.jhcye.mongodb.net/ecommerce?retryWrites=true&w=majority&appName=Cluster0')
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB error:', err));
 
+// User Schema
+const userSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+});
+const User = mongoose.model('User', userSchema);
+
+// Product Schema
 const productSchema = new mongoose.Schema({
   name: String,
   price: Number,
@@ -17,23 +29,62 @@ const productSchema = new mongoose.Schema({
 });
 const Product = mongoose.model('Product', productSchema);
 
+// Middleware to Verify Token
+const authenticateToken = (req, res, next) => {
+  const token = req.headers['authorization']?.split(' ')[1]; // Expect "Bearer <token>"
+  if (!token) return res.status(401).json({ message: 'No token provided' });
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ message: 'Invalid token' });
+    req.user = user;
+    next();
+  });
+};
+
+// Routes
 app.get('/', (req, res) => {
-  res.send('Welcome to my E-commerce Backend! Visit /products for the product list.');
+  res.send('Welcome to my E-commerce Backend! Use /signup, /login, or /products.');
 });
 
-app.get('/products', async (req, res) => {
+// Signup
+app.post('/signup', async (req, res) => {
   try {
-    const { search } = req.query; // Get 'search' from query params
-    let query = {};
-    
-    if (search) {
-      query.name = { $regex: search, $options: 'i' }; // Case-insensitive search
+    const { email, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({ email, password: hashedPassword });
+    await user.save();
+    res.status(201).json({ message: 'User created' });
+  } catch (error) {
+    res.status(400).json({ message: 'Error creating user', error: error.message });
+  }
+});
+
+// Login
+app.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
-    
+    const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Protected Products Route
+app.get('/products', authenticateToken, async (req, res) => {
+  try {
+    const { search } = req.query;
+    let query = {};
+    if (search) {
+      query.name = { $regex: search, $options: 'i' };
+    }
     const products = await Product.find(query);
     res.json(products);
   } catch (error) {
-    console.error('Error fetching products:', error);
     res.status(500).json({ message: 'Server error while fetching products' });
   }
 });
